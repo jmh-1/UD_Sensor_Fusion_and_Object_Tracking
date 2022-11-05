@@ -61,7 +61,49 @@ def load_configs_model(model_name='darknet', configs=None):
         ####### ID_S3_EX1-3 START #######     
         #######
         print("student task ID_S3_EX1-3")
+        
+        configs.model_path = os.path.join(parent_path, 'tools', 'objdet_models', 'resnet')
+        configs.pretrained_filename = os.path.join(configs.model_path, 'pretrained', 'fpn_resnet_18_epoch_300.pth')
 
+        configs.saved_fn = 'fpn_resnet_18'
+        configs.arch = 'fpn_resnet_18'
+        configs.pretrained_path = os.path.join(configs.model_path, 'pretrained', 'fpn_resnet_18_epoch_300.pth')
+        configs.K = 50
+        configs.no_cuda = False
+        configs.gpu_idx = 0
+        configs.num_samples = None
+        configs.num_workers = 4
+        configs.batch_size = 4
+        configs.peak_thresh = 0.2
+        configs.conf_thresh = configs.peak_thresh
+        configs.save_test_output = False
+        configs.output_format = 'image'
+        configs.output_video_fn = 'out_fpn_resnet_18'
+        configs.output_width = 608
+        configs.pin_memory = True
+        configs.distributed = False  # For testing on 1 GPU only
+
+        configs.input_size = (608, 608)
+        configs.hm_size = (152, 152)
+        configs.down_ratio = 4
+        configs.max_objects = 50
+
+        configs.imagenet_pretrained = False
+        configs.head_conv = 64
+        configs.num_classes = 3
+        configs.num_center_offset = 2
+        configs.num_z = 1
+        configs.num_dim = 3
+        configs.num_direction = 2  # sin, cos
+
+        configs.heads = {
+            'hm_cen': configs.num_classes,
+            'cen_offset': configs.num_center_offset,
+            'direction': configs.num_direction,
+            'z_coor': configs.num_z,
+            'dim': configs.num_dim
+        }
+        configs.num_input_features = 4
         #######
         ####### ID_S3_EX1-3 END #######     
 
@@ -69,6 +111,7 @@ def load_configs_model(model_name='darknet', configs=None):
         raise ValueError("Error: Invalid model name")
 
     # GPU vs. CPU
+    configs.min_iou = .5
     configs.no_cuda = True # if true, cuda is not used
     configs.gpu_idx = 0  # GPU index to use.
     configs.device = torch.device('cpu' if configs.no_cuda else 'cuda:{}'.format(configs.gpu_idx))
@@ -118,6 +161,9 @@ def create_model(configs):
         ####### ID_S3_EX1-4 START #######     
         #######
         print("student task ID_S3_EX1-4")
+        num_layers = 18
+        model = fpn_resnet.get_pose_net(num_layers=num_layers, heads=configs.heads, head_conv=configs.head_conv,
+                                        imagenet_pretrained=configs.imagenet_pretrained)
 
         #######
         ####### ID_S3_EX1-4 END #######     
@@ -167,7 +213,15 @@ def detect_objects(input_bev_maps, model, configs):
             ####### ID_S3_EX1-5 START #######     
             #######
             print("student task ID_S3_EX1-5")
-
+            outputs['hm_cen'] = _sigmoid(outputs['hm_cen'])
+            outputs['cen_offset'] = _sigmoid(outputs['cen_offset'])
+            # detections size (batch_size, K, 10)
+            detections = decode(outputs['hm_cen'], outputs['cen_offset'], outputs['direction'], outputs['z_coor'],
+                                outputs['dim'], K=configs.K)
+            detections = detections.cpu().numpy().astype(np.float32)
+            detections = post_processing(detections, configs)
+            detections = detections[0][1]
+            
             #######
             ####### ID_S3_EX1-5 END #######     
 
@@ -180,7 +234,14 @@ def detect_objects(input_bev_maps, model, configs):
     objects = [] 
 
     ## step 1 : check whether there are any detections
-
+    for d in detections:
+        o = np.array(d)
+        o = o / [1, configs.bev_width, configs.bev_height, 1, 1, configs.bev_width, configs.bev_height, 1]
+        o = o[[0,2,1,3,4,5,6,7]]
+        o[0] = 1
+        o[2] = o[2] - .5
+        o = o * [1, configs.lim_x[1] - configs.lim_x[0], configs.lim_y[1] - configs.lim_y[0], 1, 1, configs.lim_x[1] - configs.lim_x[0], configs.lim_y[1] - configs.lim_y[0], -1]
+        objects.append(o)
         ## step 2 : loop over all detections
         
             ## step 3 : perform the conversion using the limits for x, y and z set in the configs structure
@@ -190,5 +251,8 @@ def detect_objects(input_bev_maps, model, configs):
     #######
     ####### ID_S3_EX2 START #######   
     
-    return objects    
+    return objects
+
+def _sigmoid(x):
+    return torch.clamp(x.sigmoid_(), min=1e-4, max=1 - 1e-4)
 
