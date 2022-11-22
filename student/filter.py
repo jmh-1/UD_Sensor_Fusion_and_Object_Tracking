@@ -69,7 +69,9 @@ class Filter:
         # TODO Step 1: predict state x and estimation error covariance P to next timestep, save x and P in track
         ############
 
-        pass
+        F = self.F()
+        track.set_x(F * track.x)
+        track.set_P(F * track.P * F.transpose() + self.Q())       
         
         ############
         # END student code
@@ -79,7 +81,15 @@ class Filter:
         ############
         # TODO Step 1: update state x and covariance P with associated measurement, save x and P in track
         ############
-        
+        H = meas.sensor.get_H(track.x)
+
+        K = track.P * H.transpose() * np.linalg.inv(self.S(track, meas, H))
+        x = track.x + K * self.gamma(track, meas)
+        track.set_x(x)
+        I = np.matrix(np.identity(H.shape[1]))
+        P = (I - K * H) * track.P
+        track.set_P(P)
+
         ############
         # END student code
         ############ 
@@ -89,8 +99,8 @@ class Filter:
         ############
         # TODO Step 1: calculate and return residual gamma
         ############
-
-        return 0
+        
+        return meas.z - meas.sensor.get_hx(track.x)
         
         ############
         # END student code
@@ -101,7 +111,7 @@ class Filter:
         # TODO Step 1: calculate and return covariance of residual S
         ############
 
-        return 0
+        return H *  track.P * H.transpose() + meas.R
         
         ############
         # END student code
