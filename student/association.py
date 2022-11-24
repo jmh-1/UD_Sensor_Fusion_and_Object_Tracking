@@ -42,13 +42,25 @@ class Association:
         self.association_matrix = np.matrix([]) # reset matrix
         self.unassigned_tracks = [] # reset lists
         self.unassigned_meas = []
+
+        N = len(track_list) # N tracks
+        M = len(meas_list) # M measurements
         
         if len(meas_list) > 0:
-            self.unassigned_meas = [0]
+            self.unassigned_meas = list(range(M))
         if len(track_list) > 0:
-            self.unassigned_tracks = [0]
+            self.unassigned_tracks = list(range(N))
         if len(meas_list) > 0 and len(track_list) > 0: 
-            self.association_matrix = np.matrix([[0]])
+            self.association_matrix = np.inf*np.ones((N,M))         
+
+        # loop over all tracks and all measurements to set up association matrix
+        for i in range(N): 
+            track = track_list[i]
+            for j in range(M):
+                meas = meas_list[j]
+                dist = self.MHD(track, meas, KF)
+                if self.gating(dist, meas.sensor):
+                    self.association_matrix[i,j] = dist
         
         ############
         # END student code
@@ -63,15 +75,16 @@ class Association:
         # - return this track and measurement
         ############
 
-        # the following only works for at most one track and one measurement
-        update_track = 0
-        update_meas = 0
-        
-        # remove from list
-        self.unassigned_tracks.remove(update_track) 
-        self.unassigned_meas.remove(update_meas)
-        self.association_matrix = np.matrix([])
-            
+        if np.min(self.association_matrix) == np.inf:
+            return np.nan, np.nan
+        findex = np.argmin(self.association_matrix)
+        index = np.unravel_index(findex, self.association_matrix.shape)
+        self.association_matrix = np.delete(self.association_matrix, index[0], axis=0)
+        self.association_matrix = np.delete(self.association_matrix, index[1], axis=1)
+
+        update_track = self.unassigned_tracks.pop(index[0])
+        update_meas = self.unassigned_meas.pop(index[1])
+
         ############
         # END student code
         ############ 
@@ -92,8 +105,11 @@ class Association:
         ############
         # TODO Step 3: calculate and return Mahalanobis distance
         ############
-        
-        pass
+        H = meas.sensor.get_H(track.x)
+        gamma = KF.gamma(track, meas)
+        S = H*track.P*H.transpose() + meas.R
+        MHD = gamma.transpose() * np.linalg.inv(S) * gamma # Mahalanobis distance formula
+        return MHD
         
         ############
         # END student code
