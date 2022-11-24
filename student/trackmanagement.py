@@ -110,7 +110,9 @@ class Trackmanagement:
         for track in self.track_list:
             if( track.P[0,0] > params.max_P
                 or track.P[1,1] > params.max_P
-                or (track.state == 'confirmed' and track.score < params.delete_threshold)):
+                or (track.state == 'confirmed' and track.score < params.delete_threshold)
+                or track.score < .01):
+                print("deleting track score: " + str(track.score))
                 self.delete_track(track)
 
         ############
