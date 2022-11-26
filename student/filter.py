@@ -58,7 +58,7 @@ class Filter:
                         [q2, 0, 0, q3, 0, 0],
                         [0, q2, 0, 0, q3, 0],
                         [0, 0, q2, 0, 0, q3]])
-        return 0
+        return Q
         
         ############
         # END student code
