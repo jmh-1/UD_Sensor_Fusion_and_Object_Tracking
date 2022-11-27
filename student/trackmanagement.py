@@ -110,7 +110,8 @@ class Trackmanagement:
         for track in self.track_list:
             if( track.P[0,0] > params.max_P
                 or track.P[1,1] > params.max_P
-                or (track.state == 'confirmed' and track.score < params.delete_threshold)):
+                or (track.state == 'confirmed' and track.score < params.delete_threshold)
+                or track.score < .05):
                 self.delete_track(track)
 
         ############
@@ -144,6 +145,8 @@ class Trackmanagement:
         track.score = min(track.score + 1/params.window, 1)
         if track.score > params.confirmed_threshold:
             track.state = 'confirmed'
+        else:
+            track.state = "tentative"
         
         ############
         # END student code
